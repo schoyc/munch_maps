@@ -4,7 +4,9 @@ module.exports = {
   distance: distance,
   intermediate_point: intermediate_point,
   cross_track_distance: cross_track_distance,
-  encodePolylineCoordinate: encodePolylineCoordinate
+  encodePolylineCoordinate: encodePolylineCoordinate,
+  decodePolyline: decodePolyline,
+  encodePolyline: encodePolyline
 }
 
 function toRadians(x) {
@@ -124,14 +126,40 @@ function cross_track_distance(lat1, lon1, lat2, lon2, lat3, lon3) {
   return dXt;
 }
 
-function encodePolylineCoordinate(c) {
+function encodePolyline(points) {
+  var coords = [];
+
+  var prevLat = 0;
+  var prevLon = 0;
+
+  for (var i = 0; i < points.length; i++) {
+    var point = points[i];
+
+    var latOffset = point.lat - prevLat;
+    var lonOffset = point.lon - prevLon;
+
+    // console.log("latOffset", latOffset, "lonOffset", lonOffset);
+    coords.push(
+      encodePolylineCoordinate(latOffset),
+      encodePolylineCoordinate(lonOffset)
+    );
+
+    prevLat = point.lat;
+    prevLon = point.lon;
+  }
+
+  return coords.join('');
+
+}
+
+function encodePolylineCoordinate(coord) {
   // Step 2
-  var i = Math.round(c * 1e5);
+  var i = Math.round(coord * 1e5);
   // Step 4
   var b = i << 1;
 
   // Step 5
-  if (c < 0) {
+  if (coord < 0) {
     b = ~b;
   }
 
@@ -150,7 +178,7 @@ function encodePolylineCoordinate(c) {
 
     // Step 10
     chunk += 63;
-    console.log(chunk);
+    // console.log(chunk);
     // Step 11
     chunk = String.fromCharCode(chunk);
     chunks.push(chunk);
@@ -158,12 +186,78 @@ function encodePolylineCoordinate(c) {
   return chunks.join('');
 }
 
-function decodePolylineCoordinate(s) {
+function decodePolyline(s) {
+  var mask = 0b11111;
 
+  var coordinates = [];
+  var isLat = true;
+  var offset = {};
 
+  var prevLat = 0;
+  var prevLon = 0;
+
+  var i = 0;
+  var c = s.charCodeAt(i);
+  var chunks = [];
+
+  // if c < 32 then last chunk
+  while (i < s.length) {
+    c -= 63;
+
+    var chunk = c & mask;
+    chunks.push(chunk);
+
+    if (c < 32) {
+      var coord = _chunksToCoord(chunks);
+      var axis = isLat ? 'lat' : 'lon';
+      offset[axis] = coord;
+
+      chunks = [];
+
+      // Just found longitude
+      if (!isLat) {
+        var lat = prevLat + offset.lat;
+        var lon = prevLon + offset.lon;
+        var point = {
+          lat: lat,
+          lon: lon,
+        }
+        coordinates.push(point);
+
+        prevLat = lat;
+        prevLon = lon;
+      }
+      isLat = !isLat;
+    }
+
+    i++;
+    c = s.charCodeAt(i);
+  }
+
+  if (chunks.length != 0 || !isLat) {
+    console.log("DIDN'T PARSE CORRECTLY, STILL BYTES LEFT");
+  }
+
+  // console.log(coordinates);
+  return coordinates;
 }
 
-function encodePolyline(coordinates) {
+function _chunksToCoord(chunks) {
+  // console.log("chunks", chunks);
+  var coord = 0;
+  for (var j = 0; j < chunks.length; j++) {
+    var shift_amt = j * 5;
+    coord |= chunks[j] << shift_amt;
+  };
 
+  // console.log("Merged chunks", coord);
+  if (coord & 0x1 === 1) {
+    coord = ~coord;
+  }
 
+  coord = coord >> 1;
+  coord = coord / 1e5;
+
+  // console.log("COORD:", coord);
+  return coord;
 }
