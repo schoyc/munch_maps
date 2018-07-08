@@ -29,8 +29,6 @@ app.listen(PORT);
 
 console.log("The app is running.");
 
-var R = 6371e3; // metres
-
 app.get("/search", async function(req, res, next) {
 	var query = req.query;
 	// Need start location, end location, search term, search radius
@@ -48,10 +46,29 @@ app.get("/search", async function(req, res, next) {
 		next(error);
 	}
 	
-	
-
 });
 
+app.get("/trips", function(req, res, next) {
+	Trip.find(req.query)
+});
+
+app.get("/trips/:id", function(req, res, next) {
+	var id = req.params.id;
+
+	Trip.findById(id, )
+});
+
+app.post("/trips", function(req, res, next) {
+	Trip.create(req.body, );
+});
+
+app.post("/trips/:id", function(req, res, next) {
+	Trip.update(req.params.id, req.body, );
+});
+
+app.delete("/trips/:id", function(req, res next) {
+	Trip.delete(id, );
+});
 
 
 
